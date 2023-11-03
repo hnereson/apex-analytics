@@ -28,7 +28,7 @@ class DDB:
                                aws_access_key_id=MASTER_ACCESS_KEY, 
                                aws_secret_access_key=MASTER_SECRET, 
                                region_name='us-west-1')   
-        
+    st.cache(ttl=60*60*24)
     def query_items(self, include_conditions=None, exclude_conditions=None):
         filter_expression = None
 
