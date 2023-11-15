@@ -1,10 +1,14 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from ddb_class import DDB
 from plots import BasePlot, Boxplot
 from datetime import datetime
 import altair as alt
 from decimal import Decimal
+from collections import defaultdict
+from matplotlib.sankey import Sankey
+import matplotlib.pyplot as plt
 
 
 cipc_board = st.secrets['CIPC_BOARD_ID']
@@ -14,7 +18,7 @@ ddb = DDB(table='apex')
 #---------------SETTINGS--------------------
 page_title = "Apex Analytics"
 page_icon = ":red-circle:"  #https://www.webfx.com/tools/emoji-cheat-sheet/
-layout= "wide"
+layout= "centered"
 initial_sidebar_state="expanded"
 #-------------------------------------------
 
@@ -80,8 +84,112 @@ if password == "Admin":
         else:
             project['days_open'] = None  # Or set a default value like 0 or -1
 
+    ###### Funnel
+    # Define the status mapping
+    status_mapping = {
+        "New Project": "New Project",
+        "Gathering Scope": "Gathering Scope",
+        "Vendor Needed": "Vendor Needed",
+        "Quote Requested": "Quote Requested",
+        "Estimate Walk Scheduled": "Quote Requested",
+        "Waiting for Estimate": "Quote Requested",
+        "Waiting for Estimate/Proof": "Quote Requested",
+        "Pending Approval": "Pending Approval",
+        "Pending 2nd Approval": "Pending Approval",
+        "Pending Schedule": "Pending Schedule",
+        "Awaiting Parts": "Awaiting Parts",
+        "Scheduled": "Scheduled",
+        "FS Handling": "Scheduled",
+        "FS Queue": "Scheduled",
+        "In Progress": "Scheduled",
+        "Waiting for Invoice": "Waiting for Invoice",
+        "Waiting on Paperwork": "Waiting for Invoice",
+        "Follow Up":"Follow Up"
+    }
+
+    # Priority colors
+    priority_colors = {
+        "Critical EMERGENCY": "red",
+        "Immediate": "orange",
+        "High": "#008080", # Dark Teal
+        "Medium": "#40E0D0", # Teal
+        "Low": "#AFEEEE", # Light Teal
+        "None": "grey",
+    }
+    priority_order = ["Critical EMERGENCY", "Immediate", "High", "Medium", "Low", "None"]
+
+    # Initialize a structure to hold the aggregated data
+    funnel_data = defaultdict(lambda: defaultdict(int))
+
+    # Process each project
+    for project in projects:
+        status = project.get('status')
+        if status:
+            funnel_category = status_mapping.get(status, "Other")
+            priority = project.get('base_priority')
+            if priority =='EMERGENCY':
+                priority ="Immediate"
+            color = priority_colors.get(priority, "grey")
+            funnel_data[funnel_category][priority] += 1
+
+    status_order = [
+        "New Project", "Gathering Scope", "Vendor Needed", 
+        "Quote Requested", "Pending Approval", "Pending Schedule",
+        "Awaiting Parts", "Scheduled", "Waiting for Invoice","Follow Up", "Other"
+    ]    
+
+    # Convert to DataFrame for easier visualization
+    funnel_df = pd.DataFrame([
+        {'status': status, 'base_priority': priority, 'count': count}
+        for status, priority_data in funnel_data.items()
+        for priority, count in priority_data.items()
+    ])
+
+    # Sort the DataFrame based on the predefined status order
+
+    funnel_df['status'] = pd.Categorical(funnel_df['status'], categories=status_order, ordered=True)
+    funnel_df.sort_values('status', inplace=True)
+
+    funnel_df['base_priority'] = funnel_df['base_priority'].fillna('None')
+
+    # Create the vertical stacked bar chart
+    chart = alt.Chart(funnel_df).mark_bar(
+        cornerRadiusTopLeft=3,
+        cornerRadiusTopRight=3
+    ).encode(
+        y=alt.Y('status:N', title=None, sort=status_order),
+        x=alt.X('sum(count):Q', title=None, axis=alt.Axis(labels=False, title=None, grid=False)),
+        color=alt.Color('base_priority:N', scale=alt.Scale(domain=priority_order + ['None'], range=[priority_colors[p] for p in priority_order] + ['grey'])),
+        tooltip=[
+            alt.Tooltip('status:N', title='Status'),
+            alt.Tooltip('sum(count):Q', title='Total Projects'),
+            alt.Tooltip('base_priority:N', title='Priority'),
+            alt.Tooltip('count:Q', title='Projects by Priority', aggregate='sum', format='.0f')
+        ]
+    )
+
+    # Data labels for total number of projects
+    text = chart.mark_text(
+        align='left',
+        baseline='middle',
+        dx=3  # Nudging the text to the right of the bar
+    ).encode(
+        y='status:N',
+        text=alt.Text('sum(count):Q')
+    )
+
+    # Apply styling from BasePlot
+    base_plot = BasePlot()
+    styled_chart = base_plot.style_chart(chart, "Project Distribution by Status", 600, 400)
+
+    # This is how you would display the chart in a Streamlit app
+    st.altair_chart(styled_chart, use_container_width=True)
+
+
+
     with st.expander('Current Realities'):
-        row1= st.columns([1,1])
+        # row1= st.columns([1,1])
+
 
     ############ 1. # of projects in each status and the average days in that status
         status_data = {}
@@ -116,19 +224,21 @@ if password == "Admin":
             color=alt.value(project_color)  # Use a constant color value for the bars
         )
 
-        # Create the bar chart for the average days in status
-        bar_avg_days = alt.Chart(status_df).mark_bar(opacity=0.7, color=avg_days_color).encode(
+        # Create the triangle chart for the average days in status
+        triangle_avg_days = alt.Chart(status_df).mark_point(
+            shape='triangle-up',  # Specify the triangle shape
+            size=200,  # Adjust size to make the triangles visible and proportional
+            color=avg_days_color,
+            opacity=0.7
+        ).encode(
             x='status:N',
             y=alt.Y('avg_days_in_status:Q', axis=alt.Axis(title='')),
-            # Make this bar skinnier by adjusting the size
-            size=alt.value(10),  # Adjust the size as needed
-            # Add a legend by using the color encoding with a condition
-            color=alt.value(avg_days_color)  # Use a constant color value for the bars
+            color=alt.value(avg_days_color)  # Use a constant color value for the triangles
         )
 
-        # Combine the charts
-        combined_chart = alt.layer(bar_projects, bar_avg_days).resolve_scale(
-            y='independent'
+        # Combine the bar chart for projects and the triangle chart for avg days
+        combined_chart = alt.layer(bar_projects, triangle_avg_days).resolve_scale(
+            y='shared'
         )
 
         # Add tooltip
@@ -149,41 +259,44 @@ if password == "Admin":
         )
 
         # Display the chart in Streamlit
-        row1[0].altair_chart(alt.hconcat(combined_chart, legend), use_container_width=True)
+        st.altair_chart(alt.hconcat(combined_chart, legend), use_container_width=True)
         # row1[0].altair_chart(status_chart, use_container_width=True)
 
 
-    ############ 2. # of projects by priority and the avg days they've been open ##########################
-        priority_data = {}
+    ############ 2. # of projects by type and the avg days they've been open ##########################
+        project_data = {}
         for project in projects:
-            priority = project.get('base_priority', 'Unknown')  # Providing a default priority if none is found
-            if priority not in priority_data:
-                priority_data[priority] = {'count': 0, 'total_days': 0}
-            priority_data[priority]['count'] += 1
-            priority_data[priority]['total_days'] += project.get('days_open', 0)  # Default to 0 if 'days_open' is not present
+            y_axis= project.get('project', 'Unknown')  # Providing a default project if none is found
+            if y_axis not in project_data:
+                project_data[y_axis] = {'count': 0, 'total_days': 0}
+            project_data[y_axis]['count'] += 1
+            project_data[y_axis]['total_days'] += project.get('days_open', 0)  # Default to 0 if 'days_open' is not present
 
-        priority_df = pd.DataFrame([
+        project_df = pd.DataFrame([
             {
-                'priority': priority,
+                'project_type': y_axis,
                 'projects': data['count'],
                 'avg_days_open': (data['total_days'] / data['count']) if data['count'] > 0 else 0
             }
-            for priority, data in priority_data.items()
+            for y_axis, data in project_data.items()
         ])
 
-        priority_chart = BasePlot().style_chart(
-            alt.Chart(priority_df).mark_bar(color='teal').encode(
+        project_type_chart = BasePlot().style_chart(
+            alt.Chart(project_df).mark_bar(color='teal').encode(
                 x='projects:Q',
-                y='priority:N',
-                tooltip=['priority:N', 'projects:Q', 'avg_days_open:Q']
+                y=alt.Y('project_type:N', 
+                    axis=alt.Axis(title=''), 
+                    sort=alt.EncodingSortField(field='projects', order='descending')),
+                tooltip=['project_type:N', 'projects:Q', 'avg_days_open:Q']
             ),
-            'Projects by Priority'
+            'Current Projects by Type',
+            width=600, height=500
         )
 
-        row1[1].altair_chart(priority_chart)
+        st.altair_chart(project_type_chart)
 
     ############ 3. Boxplot by priority_values ('value_driven_priority') ############
-        col1,col2= st.columns([2,2])
+        # col1,col2= st.columns([2,2])
         cost_efficiencies = {}
 
         # Calculate cost efficiency for each project
@@ -212,10 +325,11 @@ if password == "Admin":
         color_scheme = 'teals'
 
         # Use the display_boxplot method from Boxplot to display the chart
-        with col1:
-            boxplot_instance.display_boxplot(df, 'Cost Efficiency', 'Base Priority', title_text, color_scheme)
+        # with col1:
+        boxplot_instance.display_boxplot(df, 'Cost Efficiency', 'Base Priority', title_text, color_scheme)
 
     ############ 4. emergency outstanding projects table ############
+    with st.expander("Overdue Emergency Projects"):
         filtered_projects = []
         priorities = []
         # Iterate over each project
@@ -277,12 +391,12 @@ if password == "Admin":
 
         # Output the DataFrame to display the table
         if len(filtered_projects) == 0:
-            with col2:
-                st.success('There are no outstanding Emergency projects.')
+            # with col2:
+            st.success('There are no outstanding Emergency projects.')
         else:
             # Output the DataFrame to display the table
-            with col2:
-                st.write(html, unsafe_allow_html=True)
+            # with col2:
+            st.write(html, unsafe_allow_html=True)
 
     ############ 5. # projects completed by week and month over time ############
 
