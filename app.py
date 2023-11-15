@@ -85,7 +85,7 @@ if password == "Admin":
         else:
             project['days_open'] = None  # Or set a default value like 0 or -1
 
-    ###### Funnel
+    ############### Funnel ###################
     # Priority colors
     priority_colors = {
         "Critical EMERGENCY": "red",
@@ -141,7 +141,8 @@ if password == "Admin":
     ).encode(
         y=alt.Y('grouped_status:N', title=None, sort=status_order),
         x=alt.X('sum(count):Q', title=None, axis=alt.Axis(labels=False, title=None, grid=False)),
-        color=alt.Color('base_priority:N', scale=alt.Scale(domain=priority_order + ['None'], range=[priority_colors[p] for p in priority_order] + ['grey'])),
+        color=alt.Color('base_priority:N', scale=alt.Scale(domain=priority_order + ['None'], range=[priority_colors[p] for p in priority_order] + ['grey']),sort=priority_order),
+        order=alt.Order('color_base_priority_sort_index:Q'),
         tooltip=[
             alt.Tooltip('grouped_status:N', title='Status'),
             alt.Tooltip('total_count:Q', title='Total Projects'),
