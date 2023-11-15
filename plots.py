@@ -7,8 +7,8 @@ class BasePlot():
     def __init__(self):
         self.font = 'monospace'
 
-    def style_chart(self, chart, title_text, width=600, height=300):
-        if width == False and height ==False:
+    def style_chart(self, chart, title_text, width=600, height=300, grid=True):
+        if width == False and height ==False and grid == True:
              chart = chart.properties(
             title=alt.TitleParams(title_text, fontSize=16, font=self.font, anchor='middle')
         ).configure_axis(
@@ -18,6 +18,23 @@ class BasePlot():
             labelFont=self.font,
             titleFont=self.font
         )
+        elif grid==False:
+            chart = chart.properties(
+                width=width, 
+                height=height, 
+                title=alt.TitleParams(title_text, fontSize=16, font=self.font, anchor='middle')
+            ).configure_view(
+                strokeWidth=0  # Remove border
+            ).configure_axis(
+                labelFont=self.font,
+                titleFont=self.font,
+                grid=False,
+                domain=False,  # Hide axis line
+                ticks=False  # Hide axis ticks
+            ).configure_legend(
+                labelFont=self.font,
+                titleFont=self.font
+            )
         else:
             chart = chart.properties(
                 width=width, 
@@ -254,6 +271,20 @@ class ScatterPlot(BasePlot):
         # Style the chart
         styled_chart = self.style_chart(chart, title_text, width=600, height=400)
         st.altair_chart(styled_chart, use_container_width=True)
+    
+    def plot_projects_scatterplot(self, x_axis, y_axis, data, title_text, order):
+        chart = alt.Chart(data).mark_circle().encode(
+            x=alt.X(f'{x_axis}:Q', title='Days Open'),
+            y=alt.Y(f'{y_axis}:N', title=None, sort=order),
+            size='count:Q',
+            color=alt.Color(f'{y_axis}:N', legend=alt.Legend(title="Status Group")),
+            tooltip=[f'{y_axis}:N', f'{x_axis}:Q', 'count:Q']
+        )
+
+        # Style the chart
+        styled_chart = self.style_chart(chart, title_text, width=600, height=400)
+        st.altair_chart(styled_chart, use_container_width=True)
+
 
 class BarPlot(BasePlot):
     def __init__(self):

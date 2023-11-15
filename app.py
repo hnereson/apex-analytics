@@ -2,13 +2,14 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 from ddb_class import DDB
-from plots import BasePlot, Boxplot
+from plots import BasePlot, Boxplot, ScatterPlot
 from datetime import datetime
 import altair as alt
 from decimal import Decimal
 from collections import defaultdict
 from matplotlib.sankey import Sankey
 import matplotlib.pyplot as plt
+from processing import status_mapping, group_statuses
 
 
 cipc_board = st.secrets['CIPC_BOARD_ID']
@@ -53,7 +54,7 @@ password = password_authenticate(enter_password)
 
 if password == "Admin":
 
-    row0 = st.columns([1,1,1])
+    row0 = st.columns([1,3,1])
     row0[1].title(page_title)
 
     include_conditions = {'scheduled_year': '2023'}
@@ -85,28 +86,6 @@ if password == "Admin":
             project['days_open'] = None  # Or set a default value like 0 or -1
 
     ###### Funnel
-    # Define the status mapping
-    status_mapping = {
-        "New Project": "New Project",
-        "Gathering Scope": "Gathering Scope",
-        "Vendor Needed": "Vendor Needed",
-        "Quote Requested": "Quote Requested",
-        "Estimate Walk Scheduled": "Quote Requested",
-        "Waiting for Estimate": "Quote Requested",
-        "Waiting for Estimate/Proof": "Quote Requested",
-        "Pending Approval": "Pending Approval",
-        "Pending 2nd Approval": "Pending Approval",
-        "Pending Schedule": "Pending Schedule",
-        "Awaiting Parts": "Awaiting Parts",
-        "Scheduled": "Scheduled",
-        "FS Handling": "Scheduled",
-        "FS Queue": "Scheduled",
-        "In Progress": "Scheduled",
-        "Waiting for Invoice": "Waiting for Invoice",
-        "Waiting on Paperwork": "Waiting for Invoice",
-        "Follow Up":"Follow Up"
-    }
-
     # Priority colors
     priority_colors = {
         "Critical EMERGENCY": "red",
@@ -120,17 +99,16 @@ if password == "Admin":
 
     # Initialize a structure to hold the aggregated data
     funnel_data = defaultdict(lambda: defaultdict(int))
+    projects = group_statuses(projects)
 
     # Process each project
-    for project in projects:
-        status = project.get('status')
-        if status:
-            funnel_category = status_mapping.get(status, "Other")
-            priority = project.get('base_priority')
-            if priority =='EMERGENCY':
-                priority ="Immediate"
-            color = priority_colors.get(priority, "grey")
-            funnel_data[funnel_category][priority] += 1
+    for project in projects:        
+        funnel_category = project.get('grouped_status', "Other")
+        priority = project.get('base_priority')
+        if priority =='EMERGENCY':
+            priority ="Immediate"
+        color = priority_colors.get(priority, "grey")
+        funnel_data[funnel_category][priority] += 1
 
     status_order = [
         "New Project", "Gathering Scope", "Vendor Needed", 
@@ -140,47 +118,53 @@ if password == "Admin":
 
     # Convert to DataFrame for easier visualization
     funnel_df = pd.DataFrame([
-        {'status': status, 'base_priority': priority, 'count': count}
+        {'grouped_status': status, 'base_priority': priority, 'count': count}
         for status, priority_data in funnel_data.items()
         for priority, count in priority_data.items()
     ])
 
     # Sort the DataFrame based on the predefined status order
 
-    funnel_df['status'] = pd.Categorical(funnel_df['status'], categories=status_order, ordered=True)
-    funnel_df.sort_values('status', inplace=True)
+    funnel_df['grouped_status'] = pd.Categorical(funnel_df['grouped_status'], categories=status_order, ordered=True)
+    funnel_df.sort_values('grouped_status', inplace=True)
 
     funnel_df['base_priority'] = funnel_df['base_priority'].fillna('None')
+
+    # Aggregate the total projects by grouped_status for text labels
+    total_projects_df = funnel_df.groupby('grouped_status')['count'].sum().reset_index()
+    funnel_df['total_count'] = funnel_df.groupby('grouped_status')['count'].transform('sum')
 
     # Create the vertical stacked bar chart
     chart = alt.Chart(funnel_df).mark_bar(
         cornerRadiusTopLeft=3,
         cornerRadiusTopRight=3
     ).encode(
-        y=alt.Y('status:N', title=None, sort=status_order),
+        y=alt.Y('grouped_status:N', title=None, sort=status_order),
         x=alt.X('sum(count):Q', title=None, axis=alt.Axis(labels=False, title=None, grid=False)),
         color=alt.Color('base_priority:N', scale=alt.Scale(domain=priority_order + ['None'], range=[priority_colors[p] for p in priority_order] + ['grey'])),
         tooltip=[
-            alt.Tooltip('status:N', title='Status'),
-            alt.Tooltip('sum(count):Q', title='Total Projects'),
+            alt.Tooltip('grouped_status:N', title='Status'),
+            alt.Tooltip('total_count:Q', title='Total Projects'),
             alt.Tooltip('base_priority:N', title='Priority'),
             alt.Tooltip('count:Q', title='Projects by Priority', aggregate='sum', format='.0f')
         ]
     )
 
     # Data labels for total number of projects
-    text = chart.mark_text(
+    text = alt.Chart(total_projects_df).mark_text(
         align='left',
         baseline='middle',
         dx=3  # Nudging the text to the right of the bar
     ).encode(
-        y='status:N',
-        text=alt.Text('sum(count):Q')
+        y=alt.Y('grouped_status:N', sort=status_order),
+        x=alt.X('count:Q', stack='zero'),  # Align text with the end of the bars
+        text=alt.Text('count:Q')
     )
+
 
     # Apply styling from BasePlot
     base_plot = BasePlot()
-    styled_chart = base_plot.style_chart(chart, "Project Distribution by Status", 600, 400)
+    styled_chart = base_plot.style_chart(chart + text, "Project Distribution by Status", 500, 400, grid=False)
 
     # This is how you would display the chart in a Streamlit app
     st.altair_chart(styled_chart, use_container_width=True)
@@ -190,80 +174,9 @@ if password == "Admin":
     with st.expander('Current Realities'):
         # row1= st.columns([1,1])
 
-
-    ############ 1. # of projects in each status and the average days in that status
-        status_data = {}
-        for project in projects:
-            status = project.get('status')
-            if status:
-                if status not in status_data:
-                    status_data[status] = {'count': 0, 'total_days': 0}
-                status_data[status]['count'] += 1
-                # Add the days in status only if it is not None
-                if project.get('days_in_status') is not None:
-                    status_data[status]['total_days'] += project['days_in_status']
-
-        status_df = pd.DataFrame([
-            {
-                'status': status,
-                'projects': data['count'],
-                'avg_days_in_status': (data['total_days'] / data['count']) if data['count'] > 0 else 0
-            }
-            for status, data in status_data.items()
-        ])
-
-        # Define colors for the legend
-        project_color = 'teal'
+    ############ 1. # of projects by type and the avg days they've been open ##########################
         avg_days_color = 'orange'
 
-        # Create the bar chart for the number of projects
-        bar_projects = alt.Chart(status_df).mark_bar(opacity=1, color=project_color).encode(
-            x=alt.X('status:N', axis=alt.Axis(title='')),
-            y=alt.Y('projects:Q', axis=alt.Axis(title='')),
-            # Add a legend by using the color encoding with a condition
-            color=alt.value(project_color)  # Use a constant color value for the bars
-        )
-
-        # Create the triangle chart for the average days in status
-        triangle_avg_days = alt.Chart(status_df).mark_point(
-            shape='triangle-up',  # Specify the triangle shape
-            size=200,  # Adjust size to make the triangles visible and proportional
-            color=avg_days_color,
-            opacity=0.7
-        ).encode(
-            x='status:N',
-            y=alt.Y('avg_days_in_status:Q', axis=alt.Axis(title='')),
-            color=alt.value(avg_days_color)  # Use a constant color value for the triangles
-        )
-
-        # Combine the bar chart for projects and the triangle chart for avg days
-        combined_chart = alt.layer(bar_projects, triangle_avg_days).resolve_scale(
-            y='shared'
-        )
-
-        # Add tooltip
-        combined_chart = combined_chart.encode(
-            tooltip=['status:N', 'projects:Q', 'avg_days_in_status:Q']
-        )
-
-        # Add a custom legend by creating dummy data for the legend
-        legend_data = pd.DataFrame({
-            'category': ['Count of Projects', 'Avg Days in Status'],
-            'color': [project_color, avg_days_color]
-        })
-
-        # Create the legend chart
-        legend = alt.Chart(legend_data).mark_square(size=100).encode(
-            y=alt.Y('category:N', axis=alt.Axis(orient='right', title='')),
-            color=alt.Color('color:N', scale=None)  # Prevent Altair from using its own color scale
-        )
-
-        # Display the chart in Streamlit
-        st.altair_chart(alt.hconcat(combined_chart, legend), use_container_width=True)
-        # row1[0].altair_chart(status_chart, use_container_width=True)
-
-
-    ############ 2. # of projects by type and the avg days they've been open ##########################
         project_data = {}
         for project in projects:
             y_axis= project.get('project', 'Unknown')  # Providing a default project if none is found
@@ -280,20 +193,56 @@ if password == "Admin":
             }
             for y_axis, data in project_data.items()
         ])
+        agg_project_df = project_df.groupby('project_type')['projects'].sum().reset_index()
 
-        project_type_chart = BasePlot().style_chart(
-            alt.Chart(project_df).mark_bar(color='teal').encode(
-                x='projects:Q',
-                y=alt.Y('project_type:N', 
-                    axis=alt.Axis(title=''), 
-                    sort=alt.EncodingSortField(field='projects', order='descending')),
-                tooltip=['project_type:N', 'projects:Q', 'avg_days_open:Q']
-            ),
-            'Current Projects by Type',
-            width=600, height=500
+        # Sort in descending order
+        sorted_project_types = agg_project_df.sort_values(by='projects', ascending=False)['project_type']
+
+        # Create the bar chart with custom sorting applied
+        project_type_chart = alt.Chart(project_df).mark_bar(color='teal').encode(
+            x=alt.X('projects:Q',title='Number of Projects Open'),
+            y=alt.Y('project_type:N', axis=alt.Axis(title=None), sort=list(sorted_project_types))
         )
 
-        st.altair_chart(project_type_chart)
+        # Create the triangle chart with custom sorting applied
+        triangle_avg_days = alt.Chart(project_df).mark_point(
+            shape='triangle', size=150, color=avg_days_color, opacity=0.7
+        ).encode(
+            y=alt.Y('project_type:N', sort=list(sorted_project_types)),
+            x=alt.X('avg_days_open:Q', title='Avg Days Open'),
+            color=alt.value(avg_days_color)
+        )
+        combined_chart = alt.layer(project_type_chart, triangle_avg_days).resolve_scale(
+            x='independent',
+        ).encode(
+            tooltip=['project_type:N', 'projects:Q', 'avg_days_open:Q']
+        )
+
+        # Apply styling
+        combined_chart = BasePlot().style_chart(combined_chart, 'Current Projects by Type', width=600, height=600, grid=True)
+
+        # Display the chart
+        st.altair_chart(combined_chart)
+    ############ 2. # of projects in each status and the average days in that status
+        status_data = []
+        for project in projects:
+            status = project.get('grouped_status')
+            days_in_status = project.get('days_in_status')
+
+            if status is not None and days_in_status is not None:
+                status_data.append({
+                    'status': status,
+                    'days_in_status': days_in_status
+                })
+
+        status_df = pd.DataFrame(status_data)
+        
+        # Group by 'days_in_status' and 'status' and count the number of projects
+        aggregated_data = status_df.groupby(['days_in_status', 'status']).size().reset_index(name='count')
+
+        # st.dataframe(status_df)
+        scatter_plot = ScatterPlot()
+        scatter_plot.plot_projects_scatterplot('days_in_status','status',aggregated_data, "Projects by Days Open", status_order)
 
     ############ 3. Boxplot by priority_values ('value_driven_priority') ############
         # col1,col2= st.columns([2,2])
