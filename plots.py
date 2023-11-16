@@ -322,16 +322,11 @@ class BarPlot(BasePlot):
             tooltip=[alt.Tooltip(f'{x_field}:N', title='Month'), alt.Tooltip(f'{y_field}:Q', title='Number of Projects'), alt.Tooltip(f'{color_field}:N', title='Status')],
             opacity=alt.condition(selection, alt.value(1), alt.value(0.2))
         ).facet(
-             column=alt.Column(f'{x_field}:O',header=alt.Header(labelOrient='bottom',labelPadding=10, title=None)),spacing=4
+             column=alt.Column(f'{x_field}:O',header=alt.Header(labelOrient='bottom',labelAngle=-70, labelPadding=50, title=None)),spacing=4
         ).add_selection(
             selection
-        # ).configure_title(
-            # fontSize=16, font='monospace', anchor='middle', text=title_text
         )
-        # chart.encoding.x = alt.X(f'{color_field}:N', axis=alt.Axis(title=None), scale=alt.Scale(paddingInner=0.2))
 
-        # Apply styling
-        # styled_chart = self.style_chart(chart, title_text, width=500, height=400, grid=True)
         st.altair_chart(chart, use_container_width=True)
     
     
