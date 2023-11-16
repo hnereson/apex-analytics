@@ -322,7 +322,7 @@ class BarPlot(BasePlot):
             tooltip=[alt.Tooltip(f'{x_field}:N', title='Month'), alt.Tooltip(f'{y_field}:Q', title='Number of Projects'), alt.Tooltip(f'{color_field}:N', title='Status')],
             opacity=alt.condition(selection, alt.value(1), alt.value(0.2))
         ).facet(
-             column=alt.Column(f'{x_field}:O',header=alt.Header(labelOrient='bottom',labelPadding=8, title=None)),spacing=1
+             column=alt.Column(f'{x_field}:O',header=alt.Header(labelOrient='bottom',labelPadding=10, title=None)),spacing=4
         ).add_selection(
             selection
         # ).configure_title(
