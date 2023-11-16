@@ -2,14 +2,15 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 from ddb_class import DDB
-from plots import BasePlot, Boxplot, ScatterPlot
+from plots import BasePlot, Boxplot, ScatterPlot, BarPlot
 from datetime import datetime
 import altair as alt
 from decimal import Decimal
 from collections import defaultdict
 from matplotlib.sankey import Sankey
 import matplotlib.pyplot as plt
-from processing import status_mapping, group_statuses
+from processing import get_current_timestamp, preprocess_projects, group_statuses, process_dates
+from dateutil.relativedelta import relativedelta
 
 
 cipc_board = st.secrets['CIPC_BOARD_ID']
@@ -41,6 +42,7 @@ def password_authenticate(pwsd):
         return False
 
 def blank(): return st.write('') 
+now = get_current_timestamp()
 
 enter_password = st.sidebar.text_input("Password", type = 'password')
 
@@ -63,27 +65,11 @@ if password == "Admin":
     st.cache(ttl=60*60*24)
     completed_projects = ddb.query_items({'scheduled_year': '2023', 'status': 'Complete'}, {})
     projects = ddb.query_items(include_conditions, exclude_conditions)
+    all_projects = ddb.list_items()
+    all_projects = all_projects['Items']
 
-    def get_current_timestamp():
-        return datetime.utcnow()
-    now = get_current_timestamp()
-
-    # Convert string dates to datetime objects and calculate days
-    for project in projects:
-        status_last_change = project.get('status_last_change')
-        open_date = project.get('open_date')
-
-        if status_last_change:
-            project['status_last_change'] = datetime.strptime(status_last_change, '%Y-%m-%d %H:%M:%S')
-            project['days_in_status'] = (now - project['status_last_change']).days
-        else:
-            project['days_in_status'] = None  # Or set a default value like 0 or -1
-
-        if open_date:
-            project['open_date'] = datetime.strptime(open_date.replace(' UTC', ''), '%Y-%m-%d %H:%M:%S')
-            project['days_open'] = (now - project['open_date']).days
-        else:
-            project['days_open'] = None  # Or set a default value like 0 or -1
+    projects = preprocess_projects(projects)
+    all_projects = preprocess_projects(all_projects)
 
     ############### Funnel ###################
     # Priority colors
@@ -277,6 +263,37 @@ if password == "Admin":
         # Use the display_boxplot method from Boxplot to display the chart
         # with col1:
         boxplot_instance.display_boxplot(df, 'Cost Efficiency', 'Base Priority', title_text, color_scheme)
+
+
+    with st.expander('Historical Trends'):
+    ############### Opened vs Closed by Month ###################
+        processed_projects = process_dates(all_projects)
+
+        # Initialize counters
+        monthly_counts = defaultdict(lambda: {'opened': 0, 'completed': 0})
+
+        # Filter to last 12 months
+        end_date = datetime.now()
+        start_date = end_date - relativedelta(months=12)
+
+        for project in processed_projects:
+            open_month_year = project.get('open_month_year')
+            completed_month_year = project.get('completed_month_year')
+
+            if open_month_year and pd.to_datetime(project['open_date']) >= start_date:
+                monthly_counts[open_month_year]['opened'] += 1
+            if completed_month_year and pd.to_datetime(project['completed_date']) >= start_date and pd.to_datetime(project['completed_date']) <= end_date:
+                monthly_counts[completed_month_year]['completed'] += 1
+
+        # Convert to DataFrame for plotting
+        monthly_data = pd.DataFrame.from_dict(monthly_counts, orient='index').reset_index().rename(columns={'index': 'month_year'})
+        monthly_melted = monthly_data.melt(id_vars=['month_year'], value_vars=['opened', 'completed'], var_name='status', value_name='count')
+        blank()
+        # Plotting
+        bar_plot = BarPlot()
+        ht_row = st.columns([1,2,1])
+        ht_row[1].caption('Projects Opened and Completed by Month')
+        bar_plot.plot_grouped_bar(monthly_melted, 'month_year', 'count', 'status', 'Projects Opened and Completed by Month')
 
     ############ 4. emergency outstanding projects table ############
     with st.expander("Overdue Emergency Projects"):

@@ -307,6 +307,34 @@ class BarPlot(BasePlot):
         styled_chart= styled_chart.configure_view(stroke=None).configure_axis(grid=False)
         st.altair_chart(styled_chart, use_container_width=True)
     
+    def plot_grouped_bar(self, data, x_field, y_field, color_field, title_text):
+        # Define color scheme
+        color_scheme = {'opened': 'orange', 'completed': 'teal'}
+
+        # Create a selection for the legend
+        selection = alt.selection_multi(fields=[color_field], bind='legend')
+
+        chart = alt.Chart(data).mark_bar().encode(
+            x=alt.X(f'{color_field}:N', sort=['opened', 'completed'], axis=alt.Axis(title=None, labels=False, ticks=False, domain=False,grid=False)),# scale=alt.Scale(paddingInner=0.1, paddingOuter=0.1)),
+            y=alt.Y(f'{y_field}:Q', axis=alt.Axis(title=None,grid=False)),
+            color=alt.Color(f'{color_field}:N', scale=alt.Scale(domain=list(color_scheme.keys()), range=list(color_scheme.values()))),
+
+            tooltip=[alt.Tooltip(f'{x_field}:N', title='Month'), alt.Tooltip(f'{y_field}:Q', title='Number of Projects'), alt.Tooltip(f'{color_field}:N', title='Status')],
+            opacity=alt.condition(selection, alt.value(1), alt.value(0.2))
+        ).facet(
+             column=alt.Column(f'{x_field}:O',header=alt.Header(labelOrient='bottom',labelPadding=8, title=None)),spacing=1
+        ).add_selection(
+            selection
+        # ).configure_title(
+            # fontSize=16, font='monospace', anchor='middle', text=title_text
+        )
+        # chart.encoding.x = alt.X(f'{color_field}:N', axis=alt.Axis(title=None), scale=alt.Scale(paddingInner=0.2))
+
+        # Apply styling
+        # styled_chart = self.style_chart(chart, title_text, width=500, height=400, grid=True)
+        st.altair_chart(chart, use_container_width=True)
+    
+    
 class Boxplot(BasePlot):
     def __init__(self):
         super().__init__()
