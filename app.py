@@ -72,6 +72,8 @@ if password == "Admin":
     all_projects = preprocess_projects(all_projects)
 
     ############### Funnel ###################
+    blank()
+    blank()
     # Priority colors
     priority_colors = {
         "Critical EMERGENCY": "red",
