@@ -1,5 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
+from sql_queries import run_sql_query, facilities_sql
 import pandas as pd
 from ddb_class import DDB
 from plots import BasePlot, Boxplot, ScatterPlot, BarPlot
@@ -58,18 +59,73 @@ if password == "Admin":
 
     row0 = st.columns([1,3,1])
     row0[1].title(page_title)
-
     include_conditions = {'scheduled_year': '2023'}
     exclude_conditions = {'status': 'Complete'}
 
     st.cache(ttl=60*60*24)
-    completed_projects = ddb.query_items({'scheduled_year': '2023', 'status': 'Complete'}, {})
+    # completed_projects = ddb.query_items({'scheduled_year': '2023', 'status': 'Complete'}, {})
     projects = ddb.query_items(include_conditions, exclude_conditions)
     all_projects = ddb.list_items()
     all_projects = all_projects['Items']
+    facilities_df = run_sql_query(facilities_sql)
 
-    projects = preprocess_projects(projects)
-    all_projects = preprocess_projects(all_projects)
+    # Get all assignees in current projects
+    assignee_list = []
+    for project in all_projects:
+        assignee = project.get('assignee')
+        if assignee not in assignee_list:
+            assignee_list.append(assignee)
+
+    unique_assignees = set()
+    for assignees in assignee_list:
+        for assignee in assignees.split(','):
+            unique_assignees.add(assignee.strip())
+
+    unique_assignee_list = list(unique_assignees)
+
+    # Get unique project types
+    project_type_list = []
+    for project in all_projects:
+        project_type = project.get('project')
+        if project_type not in project_type_list:
+            project_type_list.append(project_type)
+
+    with st.form("Filters"):
+        blank()
+        form1 = st.columns([1,1])
+        region = form1[0].multiselect('Select Regions:',['North','Central','South'])
+        team = form1[1].multiselect('Select Teams:', ['cipc','opc'])
+        form2 = st.columns([1,1])
+        assignee = form2[0].multiselect('Select Assignees:', unique_assignee_list)
+        project_type = form2[1].multiselect('Select Project Types:', project_type_list)
+        blank()
+        submitted = st.form_submit_button("Confirm Selection")
+        if submitted:
+            st.success('Submitted')
+        
+    def filter_projects(project_list, region, team, assignee, project_type, facilities_df):
+        if region:
+            selected_site_codes = facilities_df[facilities_df['region'].isin(region)]['site_code'].tolist()
+            project_list = [project for project in project_list if project.get('site_code') in selected_site_codes]
+
+        if team:
+            project_list = [project for project in project_list if project.get('team') in team]
+
+        if assignee:
+            project_list = [project for project in project_list if any(a.strip() in project.get('assignee', '').split(', ') for a in assignee)]
+
+        if project_type:
+            project_list = [project for project in project_list if project.get('project') in project_type]
+
+        return project_list
+
+    # Apply the filter to both lists
+    filtered_projects = filter_projects(projects, region, team, assignee, project_type, facilities_df)
+    filtered_all_projects = filter_projects(all_projects, region, team, assignee, project_type, facilities_df)
+
+
+    projects = preprocess_projects(filtered_projects)
+    all_projects = preprocess_projects(filtered_all_projects)
 
     ############### Funnel ###################
     blank()
@@ -338,35 +394,28 @@ if password == "Admin":
 
         # Convert the list of filtered projects to a DataFrame
         filtered_projects_df = pd.DataFrame(filtered_projects)
+        if not filtered_projects_df.empty: 
+            filtered_projects_df['id_link'] = filtered_projects_df.apply(
+                lambda row: f"<a href='https://reddotstorage2.monday.com/boards/{row['team_board']}/pulses/{row['id']}' target='_blank'>{row['id']}</a>", axis=1)
+            
+            filtered_projects_df.drop(columns=['id', 'team_board'], inplace=True)
+            filtered_projects_df = filtered_projects_df.sort_values('Days in status',ascending=False)
+            # Rename 'id_link' to 'id' if that's what you want your column header to be
+            filtered_projects_df.rename(columns={'id_link': 'id'}, inplace=True)
+            
+            def highlight_critical_emergency(row_index):
+                # RGBA: R=255, G=165, B=0, A=0.7 for orange color with 70% opacity
+                if priorities[row_index] == 'Critical EMERGENCY':
+                    return ['background-color: rgba(255, 165, 0, 0.7);'] * len(filtered_projects_df.columns)
+                else:
+                    return [''] * len(filtered_projects_df.columns)
 
-        filtered_projects_df['id_link'] = filtered_projects_df.apply(
-            lambda row: f"<a href='https://reddotstorage2.monday.com/boards/{row['team_board']}/pulses/{row['id']}' target='_blank'>{row['id']}</a>", axis=1)
-        
-        filtered_projects_df.drop(columns=['id', 'team_board'], inplace=True)
-
-        # Rename 'id_link' to 'id' if that's what you want your column header to be
-        filtered_projects_df.rename(columns={'id_link': 'id'}, inplace=True)
-
-        def highlight_critical_emergency(row_index):
-            # RGBA: R=255, G=165, B=0, A=0.7 for orange color with 70% opacity
-            if priorities[row_index] == 'Critical EMERGENCY':
-                return ['background-color: rgba(255, 165, 0, 0.7);'] * len(filtered_projects_df.columns)
-            else:
-                return [''] * len(filtered_projects_df.columns)
-
-        # Apply the highlighting function row-wise
-        styled_df = filtered_projects_df.style.apply(lambda x: highlight_critical_emergency(x.name), axis=1)
-        html = styled_df.to_html(escape=False, index=False)
-
-        # Output the DataFrame to display the table
-        if len(filtered_projects) == 0:
-            # with col2:
-            st.success('There are no outstanding Emergency projects.')
-        else:
-            # Output the DataFrame to display the table
-            # with col2:
+            # Apply the highlighting function row-wise
+            styled_df = filtered_projects_df.style.apply(lambda x: highlight_critical_emergency(x.name), axis=1)
+            html = styled_df.to_html(escape=False, index=False)
             st.write(html, unsafe_allow_html=True)
-
+        else:
+            st.success('There are no outstanding Emergency projects.')
     ############ 5. # projects completed by week and month over time ############
 
         # completed_projects = [p for p in projects if p.get('status') == 'Complete']
