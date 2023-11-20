@@ -1,15 +1,12 @@
 import psycopg2 
 import pandas as pd
 import streamlit as st
-from dotenv import load_dotenv
-import os 
 
-load_dotenv()
-HOST = os.getenv("POSTGRES_HOST")
-DB = os.getenv("POSTGRES_DB")
-PORT = os.getenv("POSTGRES_PORT")
-USER = os.getenv("POSTGRES_USER")
-PASSWORD = os.getenv("POSTGRES_PASSWORD")
+HOST = st.secrets["POSTGRES_HOST"]
+DB = st.secrets["POSTGRES_DB"]
+PORT = st.secrets["POSTGRES_PORT"]
+USER = st.secrets["POSTGRES_USER"]
+PASSWORD = st.secrets["POSTGRES_PASSWORD"]
 
 
 def get_sql_connection():
