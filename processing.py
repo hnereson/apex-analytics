@@ -13,15 +13,16 @@ def preprocess_projects(projects):
         scheduled_dates = project.get('scheduled_dates')
 
         if status_last_change:
-            project['status_last_change'] = datetime.strptime(status_last_change, '%Y-%m-%d %H:%M:%S')
+            project['status_last_change'] = datetime.strptime(str(status_last_change), '%Y-%m-%d %H:%M:%S')
             project['days_in_status'] = (now - project['status_last_change']).days
         else:
             project['days_in_status'] = None  # Or set a default value like 0 or -1
 
         if completed_date:
-            project['completed_date'] = datetime.strptime(completed_date, '%Y-%m-%d')
+            project['completed_date'] = datetime.strptime(str(completed_date), '%Y-%m-%d').date()
+
         if open_date:
-            project['open_date'] = datetime.strptime(open_date.replace(' UTC', ''), '%Y-%m-%d %H:%M:%S')
+            project['open_date'] = datetime.strptime(str(open_date).replace(' UTC', ''), '%Y-%m-%d %H:%M:%S')
             project['days_open'] = (now - project['open_date']).days
         else:
             project['days_open'] = None  # Or set a default value like 0 or -1
@@ -56,8 +57,9 @@ status_mapping = {
 }
 
 def group_statuses(projects):
-    for project in projects:
-        project['grouped_status'] = status_mapping.get(project.get('status'), 'Other')
+    if projects:
+        for project in projects:
+            project['grouped_status'] = status_mapping.get(project.get('status'), 'Other')
     return projects
 
 # Function to process dates and add month-year info
@@ -77,3 +79,21 @@ def process_dates(projects):
 
         processed.append(project)
     return processed
+
+def remaining_budgets(budgets, completed_projects):
+    budget_df = budgets.copy()
+    costs = {}
+    # Step 1: Aggregate Costs
+    for item in completed_projects:
+        site_code = item.get('site_code')
+        line_item = item.get('line_item')
+        cost = float(item.get('cost'))  # Assuming Decimal can be converted to float
+        costs[(site_code, line_item)] = costs.get((site_code, line_item), 0) + cost
+
+    # Step 2: Subtract Costs from Budget DataFrame
+    for site_code, line_item in costs:
+        if line_item in budget_df.columns and site_code in budget_df['RD'].values:
+            budget_df.loc[budget_df['RD'] == site_code, line_item] -= costs[(site_code, line_item)]
+    budget_df = budget_df.drop(columns='recast_capex')
+    budget_df = budget_df.melt('RD', var_name = 'line_item', value_name='budget_left')
+    return budget_df

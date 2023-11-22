@@ -31,7 +31,11 @@ def run_sql_query(sql_query):
 facilities_sql = '''
 select 
 	f.site_code,
-	r.name as region
+	r.name as region,
+    case when f.fund = 0 then 'FAM1' when f.fund =1 then 'FAM2' when f.fund =2 then 'FAM3' when f.fund =3 then 'FAM4'
+    when f.fund =4 then 'Inland' when f.fund =5 then 'RDH II' when f.fund =6 then 'RDH III' when f.fund =7 then 'RDH IV'
+    when f.fund =8 then 'SPH' 
+    when f.fund =9 then 'FAM5' end as fund 
 from facilities f 
 		left join regions r on r.id = f.region_id ;
 '''

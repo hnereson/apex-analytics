@@ -90,31 +90,32 @@ class HeatmapPlot(BasePlot):
         data = heatmap_data.reset_index().melt(id_vars='year', value_name='% moved out', var_name='month')
         return data
     
-    def plot_altair_heatmap(self, data, x_field, y_field, color_field, title_text, color_palette="teals"):
-        """
-        Create a heatmap using Altair based on the provided data.
+    def plot_altair_heatmap(self, data, x_field, y_field, color_field, title_text):
+        # Split data into positive and negative parts
+        data_positive = data[data[color_field] > 0]
+        data_negative = data[data[color_field] <= 0]
 
-        Parameters:
-        - data (pd.DataFrame): Data for the heatmap.
-        - x_field (str): Field to be used for the x-axis.
-        - y_field (str): Field to be used for the y-axis.
-        - color_field (str): Field to determine the color of the heatmap cells.
-        - title_text (str): Title for the heatmap.
-        - color_scheme (str, optional): Color scheme for the heatmap. Defaults to 'teals'.
-
-        Returns:
-        - chart: Altair heatmap chart.
-        """
-        # Define the heatmap chart
-        chart = alt.Chart(data).mark_rect().encode(
+        # Positive values heatmap
+        pos_chart = alt.Chart(data_positive).mark_rect().encode(
             x=alt.X(f'{x_field}:O', title=''),
             y=alt.Y(f'{y_field}:O', title=''),
-            color=alt.Color(f'{color_field}:Q', scale=alt.Scale(scheme=color_palette)),
+            color=alt.Color(f'{color_field}:Q', scale=alt.Scale(scheme='teals')),
             tooltip=[x_field, y_field, color_field]
         )
 
+        # Negative values heatmap
+        neg_chart = alt.Chart(data_negative).mark_rect().encode(
+            x=alt.X(f'{x_field}:O', title=''),
+            y=alt.Y(f'{y_field}:O', title=''),
+            color=alt.value('orange'),  # All negative values in orange
+            tooltip=[x_field, y_field, color_field]
+        )
+
+        # Combine the charts
+        combined_chart = pos_chart + neg_chart
+
         # Style the chart
-        styled_chart = self.style_chart(chart, title_text, width=600, height=400)
+        styled_chart = self.style_chart(combined_chart, title_text, width=600, height=400)
         return styled_chart
 
     def display_heatmap(self, data, x_field, y_field, color_field, title_text):

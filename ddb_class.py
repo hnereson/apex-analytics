@@ -59,8 +59,15 @@ class DDB:
     def get_id(self): return str(uuid.uuid4()) 
 
     st.cache(ttl=60*60*24)
-    def list_items(self): 
-        return self.table.scan() 
+    def list_items(self):
+        response = self.table.scan()
+        items = response['Items']
+
+        while 'LastEvaluatedKey' in response:
+            response = self.table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
+            items.extend(response['Items'])
+
+        return items 
     
     def convert_floats_to_decimals(self, obj):
         if isinstance(obj, float):
