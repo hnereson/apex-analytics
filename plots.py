@@ -354,15 +354,15 @@ class Boxplot(BasePlot):
         Returns:
         - chart: Altair boxplot chart.
         """
-        # Define the boxplot chart with the extent to 1.5 for excluding extreme outliers
-        chart = alt.Chart(data).mark_boxplot(extent=1.5, size=40).encode(  # Adjusted the 'size' here
-            x=alt.X(f'{category_field}:N', title='', axis=alt.Axis(labelAngle=0)),  # Optional: Adjust label angle for readability
+        chart = alt.Chart(data).mark_boxplot(extent=1.5, size=50).encode(
+            x=alt.X(f'{category_field}:N', title='', axis=alt.Axis(labelAngle=0)),
             y=alt.Y(f'{value_field}:Q', title=''),
             color=alt.Color(f'{category_field}:N', scale=alt.Scale(scheme=color_scheme)),
             tooltip=[category_field, value_field]
+        ).interactive(
         ).properties(
-            width=600  # Adjusted the width of the chart. You can also use 'step' with a band scale for the x-axis to control box width.
-        ).interactive()
+            width=600
+        )
 
         # Style the chart
         styled_chart = self.style_chart(chart, title_text)

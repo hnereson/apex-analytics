@@ -196,6 +196,8 @@ if password == "Admin":
         # Aggregate the total projects by grouped_status for text labels
         total_projects_df = funnel_df.groupby('grouped_status')['count'].sum().reset_index()
         funnel_df['total_count'] = funnel_df.groupby('grouped_status')['count'].transform('sum')
+        total_number_projects = funnel_df['count'].sum()
+        funnel_df['projects_ratio'] = funnel_df['total_count'].astype(str) + '/' + str(total_number_projects)
 
         # Create the vertical stacked bar chart
         chart = alt.Chart(funnel_df).mark_bar(
@@ -208,7 +210,7 @@ if password == "Admin":
             order=alt.Order('color_base_priority_sort_index:Q'),
             tooltip=[
                 alt.Tooltip('grouped_status:N', title='Status'),
-                alt.Tooltip('total_count:Q', title='Total Projects'),
+                alt.Tooltip('projects_ratio:N', title='Total Projects'),
                 alt.Tooltip('base_priority:N', title='Priority'),
                 alt.Tooltip('count:Q', title='Projects by Priority', aggregate='sum', format='.0f')
             ]
@@ -340,7 +342,7 @@ if password == "Admin":
                 for base_priority, efficiencies in cost_efficiencies.items()
                 for efficiency in efficiencies
             ])
-            df = df[df['Cost Efficiency']<100000]
+            df = df[df['Cost Efficiency']<10000]
             # Define the title and color scheme for the boxplot
             title_text = 'Cost Efficiency by Priority'
             color_scheme = 'teals'
