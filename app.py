@@ -313,9 +313,15 @@ if password == "Admin":
         
         ########### 3. budget heatmap ##########################
             heatmap = HeatmapPlot()
+            # st.write(remaining_budget.columns)
             budget_plot = remaining_budget.groupby(['fund','line_item'])['budget_left'].sum().unstack()
-            budget_plot = budget_plot.reset_index().melt(id_vars='fund', var_name='line_item', value_name='budget_left')
+            budget_plot = budget_plot.drop(columns=['fund','region'])
+            # st.table(budget_plot)
+            budget_plot = budget_plot.reset_index()
 
+            # Melt the DataFrame
+            budget_plot = budget_plot.melt(id_vars='fund', var_name='line_item', value_name='budget_left')
+            # st.table(budget_plot)
             heatmap.display_heatmap(budget_plot, 'fund', 'line_item', 'budget_left', 'Current Budgets (*not changed by filters)')
 
         ############ 4. Boxplot by priority_values ('value_driven_priority') ############

@@ -94,6 +94,6 @@ def remaining_budgets(budgets, completed_projects):
     for site_code, line_item in costs:
         if line_item in budget_df.columns and site_code in budget_df['RD'].values:
             budget_df.loc[budget_df['RD'] == site_code, line_item] -= costs[(site_code, line_item)]
-    budget_df = budget_df.drop(columns='recast_capex')
+    # budget_df = budget_df.drop(columns='recast_capex')
     budget_df = budget_df.melt('RD', var_name = 'line_item', value_name='budget_left')
     return budget_df
