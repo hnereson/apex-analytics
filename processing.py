@@ -37,6 +37,7 @@ def preprocess_projects(projects):
 
 status_mapping = {
     "New Project": "New Project",
+    'New Project*':'New Project',
     "Gathering Scope": "Gathering Scope",
     "Vendor Needed": "Vendor Needed",
     "Quote Requested": "Quote Requested",
@@ -45,15 +46,18 @@ status_mapping = {
     "Waiting for Estimate/Proof": "Quote Requested",
     "Pending Approval": "Pending Approval",
     "Pending 2nd Approval": "Pending Approval",
+    "Approved":"Pending Schedule",
     "Pending Schedule": "Pending Schedule",
     "Awaiting Parts": "Awaiting Parts",
+    "Shipped":"Awaiting Parts",
     "Scheduled": "Scheduled",
     "FS Handling": "Scheduled",
     "FS Queue": "Scheduled",
     "In Progress": "Scheduled",
     "Waiting for Invoice": "Waiting for Invoice",
     "Waiting on Paperwork": "Waiting for Invoice",
-    "Follow Up":"Follow Up"
+    "Follow Up":"Follow Up",
+    "FS Verifying":"Follow Up"
 }
 
 def group_statuses(projects):

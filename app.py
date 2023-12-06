@@ -164,16 +164,20 @@ if password == "Admin":
         # Initialize a structure to hold the aggregated data
         funnel_data = defaultdict(lambda: defaultdict(int))
         projects = group_statuses(projects)
-    
+        unique_statuses =[]
         # Process each project
         for project in projects:        
             funnel_category = project.get('grouped_status', "Other")
             priority = project.get('base_priority')
             if priority =='EMERGENCY':
                 priority ="Immediate"
+            status = project.get('status')
+            if status not in unique_statuses:
+                unique_statuses.append(status)
             color = priority_colors.get(priority, "grey")
             funnel_data[funnel_category][priority] += 1
-
+        
+        # st.write(unique_statuses)
         status_order = [
             "New Project", "Gathering Scope", "Vendor Needed", 
             "Quote Requested", "Pending Approval", "Pending Schedule",
