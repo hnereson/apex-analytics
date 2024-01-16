@@ -115,7 +115,7 @@ class HeatmapPlot(BasePlot):
         combined_chart = pos_chart + neg_chart
 
         # Style the chart
-        styled_chart = self.style_chart(combined_chart, title_text, width=600, height=400)
+        styled_chart = self.style_chart(combined_chart, title_text, width=600, height=300)
         return styled_chart
 
     def display_heatmap(self, data, x_field, y_field, color_field, title_text):
@@ -219,6 +219,32 @@ class HistogramPlot(BasePlot):
         # Style the chart
         styled_chart = self.style_chart(chart, title_text, width=600, height=400)
         st.altair_chart(styled_chart, use_container_width=True)
+    
+    def plot_histogram(self, data, title_text, x_title, y_title, bar_color="teal", num_bins=20):
+        """
+        Create a histogram using Altair based on the provided data.
+        
+        Parameters:
+        - data (pd.DataFrame): Data for the histogram.
+        - title_text (str): Title for the histogram.
+        - x_title (str): Title for the x-axis.
+        - y_title (str): Title for the y-axis.
+        - bar_color (str, optional): Color for the bars. Defaults to "teal".
+        - num_bins (int, optional): Number of bins for the histogram. Defaults to 15.
+        
+        Returns:
+        - chart: Altair histogram chart.
+        """
+        chart = alt.Chart(data).mark_bar(color=bar_color).encode(
+            x=alt.X('days_in_status:Q', bin=alt.Bin(maxbins=num_bins), title=x_title),
+            y=alt.Y('sum(count):Q', title=y_title),
+            tooltip=['days_in_status', 'sum(count)']
+        )
+
+        # Style the chart
+        styled_chart = self.style_chart(chart, title_text, width=500, height=400)
+        st.altair_chart(styled_chart, use_container_width=True)
+
 
 
 class ScatterPlot(BasePlot):

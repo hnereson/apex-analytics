@@ -1,8 +1,10 @@
 from datetime import datetime
+import streamlit as st
 
 def get_current_timestamp():
         return datetime.utcnow()
 
+st.cache(ttl=60*60*24)
 def preprocess_projects(projects):
     now = get_current_timestamp()
     # Convert string dates to datetime objects and calculate days
@@ -38,6 +40,9 @@ def preprocess_projects(projects):
 status_mapping = {
     "New Project": "New Project",
     'New Project*':'New Project',
+    '':'New Project',
+    'null':'New Project',
+    'On Hold':'New Project',
     "Gathering Scope": "Gathering Scope",
     "Vendor Needed": "Vendor Needed",
     "Quote Requested": "Quote Requested",
@@ -50,20 +55,25 @@ status_mapping = {
     "Pending Schedule": "Pending Schedule",
     "Awaiting Parts": "Awaiting Parts",
     "Shipped":"Awaiting Parts",
+    'Weather (Pending)':'Pending Schedule',
     "Scheduled": "Scheduled",
     "FS Handling": "Scheduled",
     "FS Queue": "Scheduled",
+    'BOT Queue':'Scheduled',
+    'Legal Queue':'Scheduled',
+    'OPC Queue':'Scheduled',
     "In Progress": "Scheduled",
     "Waiting for Invoice": "Waiting for Invoice",
     "Waiting on Paperwork": "Waiting for Invoice",
     "Follow Up":"Follow Up",
+    'Waiting for Pictures':'Follow Up',
     "FS Verifying":"Follow Up"
 }
 
 def group_statuses(projects):
     if projects:
         for project in projects:
-            project['grouped_status'] = status_mapping.get(project.get('status'), 'Other')
+            project['grouped_status'] = status_mapping.get(project.get('status'),'Other')
     return projects
 
 # Function to process dates and add month-year info

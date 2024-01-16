@@ -7,7 +7,7 @@ from collections import defaultdict
 from dateutil.relativedelta import relativedelta
 
 from ddb_class import DDB
-from plots import BasePlot, Boxplot, ScatterPlot, BarPlot,HeatmapPlot
+from plots import BasePlot, Boxplot, ScatterPlot, BarPlot,HeatmapPlot,HistogramPlot
 from processing import get_current_timestamp, preprocess_projects, group_statuses, process_dates, remaining_budgets
 from sql_queries import run_sql_query, facilities_sql
 from utils import grab_s3_file, current_year
@@ -64,16 +64,23 @@ if password == "Admin":
     
     all_projects = ddb.list_items()
     projects = []
-    project_2023 = []
+    projects_in_process = []
+    projects_in_queue = []
     for project in all_projects:
         scheduled_year = project.get('scheduled_year')
         team = project.get('team')
         status = project.get('status')
-        if scheduled_year ==this_year and status != 'Complete':
+        if scheduled_year ==this_year and status not in ['Complete','Inactive']:
             projects.append(project)
+            group = project.get('monday_group')
+            if group =='duplicate_of_reserve15117':
+                projects_in_queue.append(project)
+            else:
+                projects_in_process.append(project)        
             
     facilities_df = run_sql_query(facilities_sql)
     budgets = grab_s3_file(f'budgets_{this_year}.csv', 'apex-project-files')
+    budgets = budgets.drop(columns=['Landscaping and Snow Removal', 'Supplies'])
     remaining_budget = remaining_budgets(budgets, completed_projects)
     remaining_budget = remaining_budget.merge(facilities_df, left_on='RD', right_on='site_code', how='left')
 
@@ -109,16 +116,18 @@ if password == "Admin":
         form3 = st.columns([1,1])
         project_type = form3[0].multiselect('Select Project Types:', sorted(project_type_list))
         line_item = form3[1].multiselect('Select P&L Line Item:', sorted(remaining_budget['line_item'].unique()))
+        # form4 = st.columns([1,1])
+        # groups = form4[0].selectbox('Select In')
         blank()
         submitted = st.form_submit_button("Confirm Selection")
         if submitted:
             st.success('Submitted')
-        
+ 
     def filter_projects(project_list, region, team, assignee, project_type, facilities_df):
         if region:
             selected_site_codes = facilities_df[facilities_df['region'].isin(region)]['site_code'].tolist()
             project_list = [project for project in project_list if project.get('site_code') in selected_site_codes]
-
+            
         if team:
             project_list = [project for project in project_list if project.get('team') in team]
 
@@ -140,6 +149,7 @@ if password == "Admin":
     # Apply the filter to both lists
     filtered_projects = filter_projects(projects, region, team, assignee, project_type, facilities_df)
     filtered_all_projects = filter_projects(all_projects, region, team, assignee, project_type, facilities_df)
+    filtered_in_process = filter_projects(projects_in_process, region, team, assignee, project_type, facilities_df)
     if not filtered_projects:
         st.error('No projects with the selected criteria')
     else:
@@ -179,11 +189,11 @@ if password == "Admin":
         
         # st.write(unique_statuses)
         status_order = [
-            "New Project", "Gathering Scope", "Vendor Needed", 
+            'New Project',"Vendor Needed", 
             "Quote Requested", "Pending Approval", "Pending Schedule",
-            "Awaiting Parts", "Scheduled", "Waiting for Invoice","Follow Up", "Other"
+            "Awaiting Parts", "Scheduled","Follow Up", "Waiting for Invoice", "Other"
         ]    
-
+        ## fix this
         # Convert to DataFrame for easier visualization
         funnel_df = pd.DataFrame([
             {'grouped_status': status, 'base_priority': priority, 'count': count}
@@ -196,7 +206,7 @@ if password == "Admin":
         funnel_df.sort_values('grouped_status', inplace=True)
 
         funnel_df['base_priority'] = funnel_df['base_priority'].fillna('None')
-
+        # funnel_df = funnel_df[funnel_df['grouped_status'] != 'New Project']
         # Aggregate the total projects by grouped_status for text labels
         total_projects_df = funnel_df.groupby('grouped_status')['count'].sum().reset_index()
         funnel_df['total_count'] = funnel_df.groupby('grouped_status')['count'].transform('sum')
@@ -238,7 +248,6 @@ if password == "Admin":
 
         # This is how you would display the chart in a Streamlit app
         st.altair_chart(styled_chart, use_container_width=True)
-
 
 
         with st.expander('Current Realities'):
@@ -293,6 +302,7 @@ if password == "Admin":
 
             # Display the chart
             st.altair_chart(combined_chart)
+
         ############ 2. # of projects in each status and the average days in that status
             status_data = []
             for project in projects:
@@ -309,11 +319,13 @@ if password == "Admin":
             
             # Group by 'days_in_status' and 'status' and count the number of projects
             aggregated_data = status_df.groupby(['days_in_status', 'status']).size().reset_index(name='count')
-
+            hist_data = status_df.groupby(['days_in_status']).size().reset_index(name='count')
             # st.dataframe(status_df)
             scatter_plot = ScatterPlot()
-            scatter_plot.plot_projects_scatterplot('days_in_status','status',aggregated_data, "Projects by Days Open", status_order)
-
+            # scatter_plot.plot_projects_scatterplot('days_in_status','status',aggregated_data, "Projects by Days Open", status_order)
+            hist = HistogramPlot()
+            # st.table(hist_data)
+            hist.plot_histogram(hist_data,'Histogram of Duration in Status', 'Days in Status','')
         
         ########### 3. budget heatmap ##########################
             heatmap = HeatmapPlot()
