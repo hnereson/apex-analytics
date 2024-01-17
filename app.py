@@ -116,8 +116,8 @@ if password == "Admin":
         form3 = st.columns([1,1])
         project_type = form3[0].multiselect('Select Project Types:', sorted(project_type_list))
         line_item = form3[1].multiselect('Select P&L Line Item:', sorted(remaining_budget['line_item'].unique()))
-        # form4 = st.columns([1,1])
-        # groups = form4[0].selectbox('Select In')
+        form4 = st.columns([1,1])
+        in_process_selected = form4[0].checkbox('In Process Projects Only?')
         blank()
         submitted = st.form_submit_button("Confirm Selection")
         if submitted:
@@ -150,6 +150,9 @@ if password == "Admin":
     filtered_projects = filter_projects(projects, region, team, assignee, project_type, facilities_df)
     filtered_all_projects = filter_projects(all_projects, region, team, assignee, project_type, facilities_df)
     filtered_in_process = filter_projects(projects_in_process, region, team, assignee, project_type, facilities_df)
+    
+    if in_process_selected == True:
+        filtered_projects=filtered_in_process
     if not filtered_projects:
         st.error('No projects with the selected criteria')
     else:
