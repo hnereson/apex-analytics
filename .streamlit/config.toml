@@ -16,4 +16,4 @@ textColor = "#1f4747"
 
 # Font family for all text in the app, except code blocks. One of "sans serif", "serif", or "monospace".
 # Default: "sans serif"
-font = "monospace" 
+# font = "monospace" 

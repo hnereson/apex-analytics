@@ -4,6 +4,7 @@ import math
 import uuid
 import streamlit as st
 from boto3.dynamodb.conditions import Attr
+from boto3.dynamodb.conditions import Key
 
 MASTER_ACCESS_KEY = st.secrets['MASTER_ACCESS_KEY']
 MASTER_SECRET = st.secrets['MASTER_SECRET']
@@ -105,4 +106,25 @@ class DDB:
             item['id'] = self.get_id() 
             
         return self.table.put_item(Item=item)
+    
+    def query_by_index(self, query_params):
+        """
+        Queries the table using a specified index.
+
+        :param query_params: Dictionary with 'index', 'field', and 'value' as keys.
+        :return: List of items matching the query parameters.
+        """
+        if not all(k in query_params for k in ('index', 'field', 'value')):
+            raise ValueError("Query parameters must include 'index', 'field', and 'value'.")
+
+        index_name = query_params['index']
+        query_field = query_params['field']
+        query_value = query_params['value']
+        
+        response = self.table.query(
+            IndexName=index_name,
+            KeyConditionExpression=Key(query_field).eq(query_value)
+        )
+        
+        return response['Items']
     
