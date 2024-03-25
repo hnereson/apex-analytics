@@ -10,7 +10,7 @@ from ddb_class import DDB
 from plots import BasePlot, Boxplot, ScatterPlot, BarPlot,HeatmapPlot,HistogramPlot
 from processing import get_current_timestamp, preprocess_projects, group_statuses, process_dates, remaining_budgets
 from sql_queries import run_sql_query, facilities_sql
-from utils import grab_s3_file, current_year, date_pull, blank,display_report
+from utils import grab_s3_file, current_year, date_pull, blank,display_report, generate_presigned_url
 
 
 cipc_board = st.secrets['CIPC_BOARD_ID']
@@ -640,6 +640,21 @@ if password == "Admin":
                     with st.expander(f"{report_data['reports']} Report for {report['site_code']} on {report_data['date']}"):
                         try:
                             display_report(report)
+                            # st.write('hi')
                         except:
                             st.warning('Error retrieving set of questions and answers. Please download the pdf file instead.')
-                            
+                    
+                        blank()
+                        st.write(f'### **Download pdfs and pictures:**')
+                        for report_pdf, path in report['file_paths'].items():
+                            report_name = report_pdf.replace('_pdf_path', '')
+                            report_url = generate_presigned_url('apex-project-files', path)
+                            st.markdown(f'[Download {report_name} pdf]({report_url})')
+
+                        first_path = next(iter(report['file_paths'].values()))
+                        directory_path = '/'.join(first_path.split('/')[:-1])
+                        attachments_zip_path = f"{directory_path}/attachments.zip"
+
+                        # attachments_zip_path = report.get(path, '').replace({report_pdf}, 'attachments.zip')    
+                        attachments_url = generate_presigned_url('apex-project-files', attachments_zip_path)
+                        st.markdown(f"[Download All Pictures (zip file)]({attachments_url})")
