@@ -132,7 +132,7 @@ def display_report(report):
     field_name_mapping = {
         'site_code': 'Site Code',
         'submitted_by': 'Submitted By',
-        'Report date': 'Report Date'  # Assuming you also want to capitalize 'date'
+        "Today's date": 'Report Date'  # Assuming you also want to capitalize 'date'
     }
     
     blank()
