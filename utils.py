@@ -137,7 +137,7 @@ def display_report(report):
     
     blank()
     # Print top fields
-    for field in ['site_code', 'submitted_by', 'Report date']:
+    for field in ['site_code', 'submitted_by', "Today's date"]:
         display_name = field_name_mapping.get(field, field)
         st.write(f"{display_name}: **{report.get(field, '')}**")
 
