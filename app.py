@@ -614,7 +614,7 @@ if password == "Admin":
                         found_results = True 
                         # pull latest by created_at field  
                         aitem = sorted(aitem, key=lambda x: x.get('created_at', ''), reverse=True)[0] 
-                        report_date = aitem.get("Report date",None) 
+                        report_date = aitem.get("Today's date",None) 
                         report_types_str = aitem.get("Which are you reporting? (Select all that apply)")
 
                         # Convert the string that looks like a list to an actual list
