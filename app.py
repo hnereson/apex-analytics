@@ -614,11 +614,16 @@ if password == "Admin":
                         found_results = True 
                         # pull latest by created_at field  
                         aitem = sorted(aitem, key=lambda x: x.get('created_at', ''), reverse=True)[0] 
-                        report_date = aitem.get("Today's date",None) 
+                        report_date = aitem.get("Today's date") or aitem.get("Report date", None)
                         report_types_str = aitem.get("Which are you reporting? (Select all that apply)")
 
                         # Convert the string that looks like a list to an actual list
                         report_types = report_types_str.strip("[]").replace("'", "").split(', ')
+
+                        if report_date:
+                            report_date = datetime.strptime(report_date, '%Y-%m-%d').date()
+                            if (report_date < start_date) or (report_date > end_date):
+                                continue
 
                         if 'All' in reporting_types_set or any(rt.strip() in {'Break In', 'Non-Break In Incident', 'Repair Request'} for rt in report_types):
                             if 'Incidents' in reporting_types_set and not any(rt.strip() in {'Break In', 'Non-Break In Incident'} for rt in report_types):
