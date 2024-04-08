@@ -186,7 +186,7 @@ def display_question_answer(report, question, answer,section_questions, section)
             if not success:
                 st.warning(f"Failed to load image: {image_path}")
     else:
-        st.write(f" - {escape_hash(question)}: **{escape_hash(answer)}**")
+        st.write(f" - {escape_hash(question)}: **{escape_hash(answer.strip())}**")
     # Handling branched questions
     if 'branch_to' in section_questions[question] and answer in section_questions[question]['branch_to']:
         branched_questions = section_questions[question]['branch_to'][answer]
@@ -200,6 +200,20 @@ def string_to_list(input_string):
         return ast.literal_eval(input_string)
     except ValueError:
         return []
+
+def check_s3_file(bucket_name, directory_path, id):
+    s3_client = s3_init()
+    files_in_directory = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=directory_path)
+
+    attachments_id_path = f"{directory_path}/attachments_{id}.zip"
+    attachments_path = f"{directory_path}/attachments.zip"
+
+    for obj in files_in_directory.get('Contents', []):
+        if obj['Key'] == attachments_id_path:
+            return attachments_id_path
+        elif obj['Key'] == attachments_path:
+            return attachments_path
+    return None
 
 def generate_presigned_url(bucket_name, object_name, expiration=3600): 
     

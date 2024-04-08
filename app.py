@@ -10,7 +10,7 @@ from ddb_class import DDB
 from plots import BasePlot, Boxplot, ScatterPlot, BarPlot,HeatmapPlot,HistogramPlot
 from processing import get_current_timestamp, preprocess_projects, group_statuses, process_dates, remaining_budgets
 from sql_queries import run_sql_query, facilities_sql
-from utils import grab_s3_file, current_year, date_pull, blank,display_report, generate_presigned_url
+from utils import grab_s3_file, current_year, date_pull, blank,display_report, generate_presigned_url, check_s3_file
 
 
 cipc_board = st.secrets['CIPC_BOARD_ID']
@@ -609,11 +609,13 @@ if password == "Admin":
             # change names
             with st.spinner("Preparing Historical Data..."):
                 for site in reporting_sites:  
-                    aitem = reports_table.query_by_index(query_params={'index': 'SiteCodeIndex', 'field': 'site_code', 'value': site}) 
-                    if aitem:  
+                    aitems = reports_table.query_by_index(query_params={'index': 'SiteCodeIndex', 'field': 'site_code', 'value': site}) 
+                    aitems = sorted(aitems, key=lambda x: x.get('created_at', ''), reverse=True)
+                    # st.write(aitems)
+                    for aitem in aitems:  
                         found_results = True 
                         # pull latest by created_at field  
-                        aitem = sorted(aitem, key=lambda x: x.get('created_at', ''), reverse=True)[0] 
+                        # aitem = sorted(aitem, key=lambda x: x.get('created_at', ''), reverse=True)[0] 
                         report_date = aitem.get("Today's date") or aitem.get("Report date", None)
                         report_types_str = aitem.get("Which are you reporting? (Select all that apply)")
 
@@ -634,14 +636,14 @@ if password == "Admin":
                             report_type_combined = " & ".join(report_types) if report_types else ""
                             list_of_reports.append({'aitem': aitem, 'date': report_date, 'reports': report_type_combined})
 
-                
                 if len(list_of_reports) ==0:
                     st.warning('No reports found.')
 
 
                 for report_data in list_of_reports:  # assuming list_of_audits contains multiple audit data
                     report = report_data['aitem']
-                    # st.write(report)
+                    id = report['id'][-5:]
+                    # st.write(id)
                     with st.expander(f"{report_data['reports']} Report for {report['site_code']} on {report_data['date']}"):
                         try:
                             display_report(report)
@@ -658,8 +660,9 @@ if password == "Admin":
 
                         first_path = next(iter(report['file_paths'].values()))
                         directory_path = '/'.join(first_path.split('/')[:-1])
-                        attachments_zip_path = f"{directory_path}/attachments.zip"
 
-                        # attachments_zip_path = report.get(path, '').replace({report_pdf}, 'attachments.zip')    
-                        attachments_url = generate_presigned_url('apex-project-files', attachments_zip_path)
+                        attachments_zip_path = check_s3_file('apex-project-files', directory_path, id)
+                        # st.write(attachments_zip_path)
+                        if attachments_zip_path:
+                            attachments_url = generate_presigned_url('apex-project-files', attachments_zip_path)
                         st.markdown(f"[Download All Pictures (zip file)]({attachments_url})")
