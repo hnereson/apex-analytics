@@ -150,25 +150,32 @@ def display_report(report):
     for section, section_questions in sections.items():
         if section in report:
             st.write(f"### **{section}**")
-            displayed_questions = set()
             for question in section_questions:
                 if question in report[section]:
                     answer = report[section][question]
-                    display_question_answer(question, answer,section)
-                    displayed_questions.add(question)
-
-            # Check for additional questions in this section not predefined
-            for question, answer in report[section].items():
-                if question not in displayed_questions:
-                    display_question_answer(question, answer,section)
+                    display_question_answer(report, question, answer, section_questions, section)
+            if section == 'Break In Units':
+                selected_units_str = report['Break In Units'].get('Which units were broken into?', '[]')
+                selected_units = string_to_list(selected_units_str)
+                unit_specific_questions = incident_questions.generate_unit_specific_questions(selected_units)
+                # st.write(unit_specific_questions)
+                blank()
+                for question in unit_specific_questions:
+                    answer = report[section][question]
+                    # st.write(question, answer)
+                    display_question_answer(report, question, answer, unit_specific_questions, section)
+            # # Check for additional questions in this section not predefined
+            # for question, answer in report[section].items():
+            #     if question not in displayed_questions:
+            #         display_question_answer(report, question, answer, section_questions, section)
 
 # Function to display question and answer
-def display_question_answer(question, answer,section):
+def display_question_answer(report, question, answer,section_questions, section):
     if section == 'Scope Intake':
         st.write(f' - {question}:')
         items = string_to_list(answer)
         for idx, item in enumerate(items, 1):
-            st.write(f"     {idx}. {escape_hash(item)} ")
+            st.write(f"     {idx}. **{escape_hash(item)}** ")
             blank()
     elif isinstance(answer, str) and answer.startswith('[') and answer.endswith(']') and ('upload' in question.lower()):
         st.write(f" - {escape_hash(question)}:")
@@ -179,7 +186,20 @@ def display_question_answer(question, answer,section):
             if not success:
                 st.warning(f"Failed to load image: {image_path}")
     else:
-        st.write(f" - {escape_hash(question)}: {escape_hash(answer)}")
+        st.write(f" - {escape_hash(question)}: **{escape_hash(answer)}**")
+    # Handling branched questions
+    if 'branch_to' in section_questions[question] and answer in section_questions[question]['branch_to']:
+        branched_questions = section_questions[question]['branch_to'][answer]
+        for branched_question, _ in branched_questions.items():
+            branched_answer = report[section].get(branched_question, '')
+            display_question_answer(report, branched_question, branched_answer, branched_questions, section)
+
+def string_to_list(input_string):
+    import ast
+    try:
+        return ast.literal_eval(input_string)
+    except ValueError:
+        return []
 
 def generate_presigned_url(bucket_name, object_name, expiration=3600): 
     
