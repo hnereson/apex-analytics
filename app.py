@@ -645,14 +645,7 @@ if password == "Admin":
                     id = report['id'][-5:]
                     # st.write(id)
                     with st.expander(f"{report_data['reports']} Report for {report['site_code']} on {report_data['date']}"):
-                        try:
-                            display_report(report)
-                            # st.write('hi')
-                        except:
-                            st.warning('Error retrieving set of questions and answers. Please download the pdf file instead.')
-                    
-                        blank()
-                        st.write(f'### **Download pdfs and pictures:**')
+                        # st.write(f'### **Download pdfs and pictures:**')
                         for report_pdf, path in report['file_paths'].items():
                             report_name = report_pdf.replace('_pdf_path', '')
                             report_url = generate_presigned_url('apex-project-files', path)
@@ -666,3 +659,12 @@ if password == "Admin":
                         if attachments_zip_path:
                             attachments_url = generate_presigned_url('apex-project-files', attachments_zip_path)
                         st.markdown(f"[Download All Pictures (zip file)]({attachments_url})")
+
+                        blank()
+
+                        try:
+                            display_report(report)
+                            # st.write('hi')
+                        except:
+                            st.warning('Error retrieving set of questions and answers. Please download the pdf file instead.')
+                    
