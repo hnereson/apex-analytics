@@ -579,8 +579,8 @@ if password == "Admin":
             sites = aa1.multiselect("Site", ['', 'All', 'North Region', 'Central Region', 'South Region'] + sorted_sites)
             reports_dr = aa2.date_input("Date Range", (last_week, today))
             r1, r2 = st.columns(2)
-            reporting_types = r1.multiselect("Report Types", ['All','Incidents','Repair Requests'])
-
+            reporting_types = r1.multiselect("Report Types", ['All','Break Ins','Incidents','Repair Requests'])
+            download_only = r2.checkbox("Download files only?")
             reports_search = st.form_submit_button("Search") 
         
         if reports_search:
@@ -602,7 +602,6 @@ if password == "Admin":
 
             start_date = reports_dr[0] 
             end_date = reports_dr[1]
-
             reports_table = DDB('incident-scope-form')
             list_of_reports=[]
 
@@ -628,7 +627,10 @@ if password == "Admin":
                                 continue
 
                         if 'All' in reporting_types_set or any(rt.strip() in {'Break In', 'Non-Break In Incident', 'Repair Request'} for rt in report_types):
-                            if 'Incidents' in reporting_types_set and not any(rt.strip() in {'Break In', 'Non-Break In Incident'} for rt in report_types):
+                            # if 'Incidents' in reporting_types_set and not any(rt.strip() in {'Break In', 'Non-Break In Incident'} for rt in report_types):
+                            if 'Incidents' in reporting_types_set and 'Non-Break In Incident' not in report_types:
+                                continue
+                            if 'Break Ins' in reporting_types_set and 'Break In' not in report_types:
                                 continue
                             if 'Repair Requests' in reporting_types_set and 'Repair Request' not in report_types:
                                 continue
@@ -639,32 +641,52 @@ if password == "Admin":
                 if len(list_of_reports) ==0:
                     st.warning('No reports found.')
 
+                if download_only == False:
+                    for report_data in list_of_reports:  # assuming list_of_audits contains multiple audit data
+                        report = report_data['aitem']
+                        id = report['id'][-5:]
+                        # st.write(id)
+                        with st.expander(f"{report_data['reports']} Report for {report['site_code']} on {report_data['date']}"):
+                            # st.write(f'### **Download pdfs and pictures:**')
+                            for report_pdf, path in report['file_paths'].items():
+                                report_name = report_pdf.replace('_pdf_path', '')
+                                report_url = generate_presigned_url('apex-project-files', path)
+                                st.markdown(f'[Download {report_name} pdf]({report_url})')
 
-                for report_data in list_of_reports:  # assuming list_of_audits contains multiple audit data
-                    report = report_data['aitem']
-                    id = report['id'][-5:]
-                    # st.write(id)
-                    with st.expander(f"{report_data['reports']} Report for {report['site_code']} on {report_data['date']}"):
-                        # st.write(f'### **Download pdfs and pictures:**')
+                            first_path = next(iter(report['file_paths'].values()))
+                            directory_path = '/'.join(first_path.split('/')[:-1])
+
+                            attachments_zip_path = check_s3_file('apex-project-files', directory_path, id)
+                            # st.write(attachments_zip_path)
+                            if attachments_zip_path:
+                                attachments_url = generate_presigned_url('apex-project-files', attachments_zip_path)
+                            st.markdown(f"[Download All Pictures (zip file)]({attachments_url})")
+
+                            blank()
+
+                            try:
+                                display_report(report)
+                                # st.write('hi')
+                            except:
+                                st.warning('Error retrieving set of questions and answers. Please download the pdf file instead.')
+                else:
+                    blank()
+                    for report_data in list_of_reports:  # Assuming list_of_reports contains multiple report data
+                        report = report_data['aitem']
+                        id = report['id'][-5:]
+                        report_title = f"{report['site_code']} {report_data['reports']} Report on {report_data['date']}"
+                        st.write(f'**{report_title}**')  # Display the title of the report
+                        # Generate and display download links for PDFs
                         for report_pdf, path in report['file_paths'].items():
                             report_name = report_pdf.replace('_pdf_path', '')
                             report_url = generate_presigned_url('apex-project-files', path)
                             st.markdown(f'[Download {report_name} pdf]({report_url})')
 
+                        # Check for attachments and generate download link
                         first_path = next(iter(report['file_paths'].values()))
                         directory_path = '/'.join(first_path.split('/')[:-1])
-
                         attachments_zip_path = check_s3_file('apex-project-files', directory_path, id)
-                        # st.write(attachments_zip_path)
                         if attachments_zip_path:
                             attachments_url = generate_presigned_url('apex-project-files', attachments_zip_path)
-                        st.markdown(f"[Download All Pictures (zip file)]({attachments_url})")
-
-                        blank()
-
-                        try:
-                            display_report(report)
-                            # st.write('hi')
-                        except:
-                            st.warning('Error retrieving set of questions and answers. Please download the pdf file instead.')
-                    
+                            st.markdown(f"[Download All Pictures (zip file)]({attachments_url})")
+                        "---"
