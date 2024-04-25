@@ -644,6 +644,7 @@ if password == "Admin":
                 if download_only == False:
                     for report_data in list_of_reports:  # assuming list_of_audits contains multiple audit data
                         report = report_data['aitem']
+                        # st.write(report['id'])
                         id = report['id'][-5:]
                         # st.write(id)
                         with st.expander(f"{report_data['reports']} Report for {report['site_code']} on {report_data['date']}"):
@@ -674,6 +675,7 @@ if password == "Admin":
                     for report_data in list_of_reports:  # Assuming list_of_reports contains multiple report data
                         report = report_data['aitem']
                         id = report['id'][-5:]
+                        # st.write(report['id'])
                         report_title = f"{report['site_code']} {report_data['reports']} Report on {report_data['date']}"
                         st.write(f'**{report_title}**')  # Display the title of the report
                         # Generate and display download links for PDFs
